@@ -36,4 +36,4 @@ Features that existed in old Dex that I didn't get to make. These should be the 
 
 [Moon](https://github.com/LorekeeperZinnia/Dex) (Creator)
 
-[Toon](https://github.com/Toon-arch) (Click part to select)
+[Toon](https://github.com/Toon-arch) (Click part to select and IY's Dex source, because some module sources were merged to the PR)
