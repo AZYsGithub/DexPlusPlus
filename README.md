@@ -11,6 +11,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DexPlusPlu
 Since the original Dex is the last release and Moon have discontinued it, it still has some missing features such as "Click part to select".
 Dex++ will take over the legacy of Moon's Dex and adding missing features.
 Here are the features that were added/fixed in Dex++
+- Mobile Inputs
 - Console Output
 - Model Viewer
 - Revived Save Instance
