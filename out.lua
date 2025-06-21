@@ -1,11 +1,11 @@
 --[[
 	Dex++
-	Beta 1.3.5 Version
+	Beta 1.4.0 Version
 	
 	Created by Moon
 	Edited by Chillz
 	
-	Dex is a debugging suite designed to help the user debug games and find any potential vulnerabilities.
+	Dex++ is a revival of Moon's Dex, made to fulfill Moon's Dex prophecy.
 ]]
 
 local selection
@@ -2169,7 +2169,7 @@ local function main()
 			local scr = selection.List[1] and selection.List[1].Obj
 			if scr then ScriptViewer.ViewScript(scr) end
 		end})
-		context:Register("DUMP_FUNCTIONS",{Name = "Dump Functions", OnClick = function()
+		context:Register("DUMP_FUNCTIONS",{Name = "Dump Functions", IconMap = Explorer.MiscIcons, Icon = "ViewScript", OnClick = function()
 			local scr = selection.List[1] and selection.List[1].Obj
 			if scr then ScriptViewer.DumpFunctions(scr) end
 		end})
@@ -9227,9 +9227,9 @@ end
 
 local function getPath(obj)
 	if obj.Parent == nil then
-		return "nil parented"
+		return "Nil parented"
 	else
-		return Explorer.GetInstancePath(obj)
+		return getPath(obj)
 	end
 end
 
@@ -9360,13 +9360,14 @@ local function main()
 
 		viewportFrame.InputBegan:Connect(function(input)
 			if not ModelViewer.EnableInputCamera then return end
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = true
 				lastpos = input.Position
 			elseif input.KeyCode == Enum.KeyCode.LeftShift then
 				ModelViewer.ZoomMultiplier = 10
 			end
 		end)
+		
 
 		viewportFrame.MouseEnter:Connect(function()
 			hovering = true
@@ -9377,16 +9378,16 @@ local function main()
 
 		viewportFrame.InputEnded:Connect(function(input)
 			if not ModelViewer.EnableInputCamera then return end
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = false
 			elseif input.KeyCode == Enum.KeyCode.LeftShift then
 				ModelViewer.ZoomMultiplier = 2
 			end
 		end)
 
-		UIS.InputChanged:Connect(function(input)
+		viewportFrame.InputChanged:Connect(function(input)
 			if not ModelViewer.EnableInputCamera then return end
-			if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 				local delta = input.Position - lastpos
 				lastpos = input.Position
 
@@ -9496,6 +9497,14 @@ local function main()
 			ModelViewer.EnableInputCamera = true
 		end})
 		
+		context:Register("ZOOM_IN",{Name = "Zoom In", OnClick = function()
+			distance = math.clamp(distance - (ModelViewer.ZoomMultiplier * 2), 2, math.huge)
+		end})
+		
+		context:Register("ZOOM_OUT",{Name = "Zoom Out", OnClick = function()
+			distance = math.clamp(distance + (ModelViewer.ZoomMultiplier * 2), 2, math.huge)
+		end})
+		
 		local function ShowContext()
 			context:Clear()
 
@@ -9504,6 +9513,12 @@ local function main()
 			context:AddRegistered("COPY_PATH", not ModelViewer.IsViewing)
 			context:AddRegistered("SAVE_INST", not ModelViewer.IsViewing)
 			context:AddDivider()
+			
+			if env.isonmobile then
+				context:AddRegistered("ZOOM_IN")
+				context:AddRegistered("ZOOM_OUT")
+				context:AddDivider()
+			end
 
 			if ModelViewer.AutoRotate then
 				context:AddRegistered("DISABLE_AUTO_ROTATE")
@@ -11846,6 +11861,14 @@ elseif game:GetService("RunService"):IsStudio() then
 	executorVersion = version()
 end
 
+local function getPath(obj)
+	if obj.Parent == nil then
+		return "Nil parented"
+	else
+		return getPath(obj)
+	end
+end
+
 local function main()
 	local ScriptViewer = {}
 	local window, codeFrame
@@ -11858,7 +11881,7 @@ local function main()
 		if not s or not source then
 			PreviousScr = nil
 			source = "-- Unable to view source.\n"
-			source = source .. "-- Script Path: "..Explorer.GetInstancePath(scr).."\n"
+			source = source .. "-- Script Path: "..getPath(scr).."\n"
 			if scr:IsA("Script") and scr.RunContext == Enum.RunContext.Legacy and not scr:IsA("LocalScript") then
 				source = source .. "-- Reason: The script is likely to be running on server, or your executor does not support decompiler.\n"
 			else
@@ -11869,12 +11892,12 @@ local function main()
 			PreviousScr = scr
 			local decompiled = source
 
-			source = "-- Script Path: "..Explorer.GetInstancePath(scr).."\n"
+			source = "-- Script Path: "..getPath(scr).."\n"
 			source = source .. "-- Took "..tostring(math.floor( (tick() - oldtick) * 100) / 100).."s to decompile.\n"
 			source = source .. "-- Executor: "..executorName.." ("..executorVersion..")\n\n"
 			
 			
-			source = source .. "-- // local script = "..Explorer.GetInstancePath(scr).."\n"
+			source = source .. "-- // local script = "..getPath(scr).."\n"
 			source = source .. decompiled
 			
 			oldtick = nil
@@ -11891,7 +11914,7 @@ local function main()
 		local getupvalues = (debug and debug.getupvalues) or getupvalues or getupvals
 		local getconstants = (debug and debug.getconstants) or getconstants or getconsts
 		local getinfo = (debug and (debug.getinfo or debug.info)) or getinfo
-		local original = ("\n-- // Function Dumper made by King.Kevin\n-- // Script Path: %s\n\n--[["):format(Explorer.GetInstancePath(scr))
+		local original = ("\n-- // Function Dumper made by King.Kevin\n-- // Script Path: %s\n\n--[["):format(getPath(scr))
 		local dump = original
 		local functions, function_count, data_base = {}, 0, {}
 		function functions:add_to_dump(str, indentation, new_line)
@@ -12063,12 +12086,12 @@ end,
 }
 --[[
 	Dex++
-	Beta 1.3.5 Version
+	Beta 1.4.0 Version
 	
 	Created by Moon
 	Edited by Chillz
 	
-	Dex is a debugging suite designed to help the user debug games and find any potential vulnerabilities.
+	Dex++ is a revival of Moon's Dex, made to fulfill Moon's Dex prophecy.
 ]]
 
 local oldgame = oldgame or game
@@ -12215,7 +12238,7 @@ Main = (function()
 	Main.Elevated = false
 	Main.AllowDraggableOnMobile = true
 	Main.MissingEnv = {}
-	Main.Version = "Beta 1.3.5"
+	Main.Version = "Beta 1.4.0"
 	Main.Mouse = plr:GetMouse()
 	Main.AppControls = {}
 	Main.Apps = Apps
@@ -12270,7 +12293,7 @@ Main = (function()
 				if not control then Main.Error("Missing Embedded Module: "..name) end
 			elseif _G.DebugLoadModel then -- Load Debug Model File
 				local model = Main.DebugModel
-				if not model then model = oldgame:GetObjects(getsynasset("AfterModules.rbxm"))[1] end
+				if not model then model = game:GetObjects(getsynasset("AfterModules.rbxm"))[1] end
 
 				control = loadstring(model.Modules[name].Source)()
 				print("Locally Loaded Module",name,control)
@@ -12278,7 +12301,7 @@ Main = (function()
 				-- Get hash data
 				local hashs = Main.ModuleHashData
 				if not hashs then
-					local s,hashDataStr = pcall(oldgame.HttpGet, game, "https://api.github.com/repos/"..Main.GitRepoName.."/ModuleHashs.dat")
+					local s,hashDataStr = pcall(game.HttpGet, game, "https://api.github.com/repos/"..Main.GitRepoName.."/ModuleHashs.dat")
 					if not s then Main.Error("Failed to get module hashs") end
 
 					local s,hashData = pcall(service.HttpService.JSONDecode,service.HttpService,hashDataStr)
@@ -12366,6 +12389,8 @@ Main = (function()
 			rawset(self,name,func)
 		end})
 
+		env.isonmobile = game:GetService("UserInputService").TouchEnabled
+
 		-- file
 		env.readfile = readfile
 		env.writefile = writefile
@@ -12380,7 +12405,7 @@ Main = (function()
 				RepoURL = "https://raw.githubusercontent.com/luau/SynSaveInstance/main/",
 				SSI = "saveinstance",
 			}
-			local synsaveinstance = loadstring(oldgame:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
+			local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
 		
 			local function wrappedsaveinstance(obj, filepath, options)
 				options["FilePath"] = filepath
@@ -12586,7 +12611,7 @@ Main = (function()
 					Main.DepsVersionData[1] = ""
 				end
 			end
-			rawAPI = rawAPI or oldgame:HttpGet("http://setup.roblox.com/"..Main.RobloxVersion.."-API-Dump.json")
+			rawAPI = rawAPI or game:HttpGet("http://setup.roblox.com/"..Main.RobloxVersion.."-API-Dump.json")
 		else
 			if script:FindFirstChild("API") then
 				rawAPI = require(script.API)
@@ -12734,7 +12759,7 @@ Main = (function()
 					Main.DepsVersionData[1] = ""
 				end
 			end
-			rawXML = rawXML or oldgame:HttpGet("https://raw.githubusercontent.com/CloneTrooper1019/Roblox-Client-Tracker/roblox/ReflectionMetadata.xml")
+			rawXML = rawXML or game:HttpGet("https://raw.githubusercontent.com/CloneTrooper1019/Roblox-Client-Tracker/roblox/ReflectionMetadata.xml")
 		else
 			if script:FindFirstChild("RMD") then
 				rawXML = require(script.RMD)
@@ -13251,7 +13276,7 @@ Main = (function()
 					Main.RobloxVersion = Main.DepsVersionData[2]
 				end
 			end
-			Main.RobloxVersion = Main.RobloxVersion or oldgame:HttpGet("http://setup.roblox.com/versionQTStudio")
+			Main.RobloxVersion = Main.RobloxVersion or game:HttpGet("http://setup.roblox.com/versionQTStudio")
 		end
 
 		-- Fetch external deps
