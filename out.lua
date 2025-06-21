@@ -1,13 +1,3 @@
---[[
-	Dex++
-	Beta 1.4.0 Version
-	
-	Created by Moon
-	Edited by Chillz
-	
-	Dex++ is a revival of Moon's Dex, made to fulfill Moon's Dex prophecy.
-]]
-
 local selection
 local nodes = {}
 
@@ -9229,7 +9219,7 @@ local function getPath(obj)
 	if obj.Parent == nil then
 		return "Nil parented"
 	else
-		return getPath(obj)
+		return Explorer.GetInstancePath(obj)
 	end
 end
 
@@ -11865,7 +11855,7 @@ local function getPath(obj)
 	if obj.Parent == nil then
 		return "Nil parented"
 	else
-		return getPath(obj)
+		return Explorer.GetInstancePath(obj)
 	end
 end
 
