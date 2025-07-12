@@ -35,10 +35,10 @@ local function main()
 	local Console = {}
 
 	local window,ConsoleFrame
-	
+
 	local OutputLimit = 500 -- Same as Roblox Console.
-	
-	
+
+
 	-- Instances: 29 | Scripts: 1 | Modules: 1 | Tags: 0
 	local G2L = {};
 
@@ -145,7 +145,7 @@ local function main()
 	-- StarterGui.ScreenGui.Console.CommandLine.ScrollingFrame.Highlight.UIPadding
 	G2L["9"] = Instance.new("UIPadding", G2L["8"]);
 	G2L["9"]["PaddingLeft"] = UDim.new(0, 7);
-	
+
 	G2L["backgroundOutput"] = Instance.new("Frame", ConsoleFrame);
 	G2L["backgroundOutput"]["BorderSizePixel"] = 0;
 	G2L["backgroundOutput"]["BackgroundColor3"] = Color3.fromRGB(36, 36, 36);
@@ -155,7 +155,7 @@ local function main()
 	G2L["backgroundOutput"]["Position"] = UDim2.new(0, 4, 0, 23);
 	G2L["backgroundOutput"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
 	G2L["backgroundOutput"]["ZIndex"] = 1;
-	
+
 	local scrollbar = Lib.ScrollBar.new()
 	scrollbar.Gui.Parent = ConsoleFrame
 	scrollbar.Gui.Size = UDim2.new(0, 16, 1, -55);
@@ -359,6 +359,37 @@ local function main()
 	G2L["1b"]["PaddingTop"] = UDim.new(0, 1);
 	G2L["1b"]["PaddingBottom"] = UDim.new(0, 1);
 
+	-- StarterGui.ScreenGui.Console.AutoScroll
+	G2L["20"] = Instance.new("ImageButton", ConsoleFrame);
+	G2L["20"]["BorderSizePixel"] = 0;
+	G2L["20"]["BackgroundColor3"] = Color3.fromRGB(57, 57, 57);
+	G2L["20"]["Size"] = UDim2.new(0, 60, 0, 15);
+	G2L["20"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
+	G2L["20"]["Name"] = [[AutoScroll]];
+	G2L["20"]["Position"] = UDim2.new(0, 110, 0, 4);
+
+
+	-- StarterGui.ScreenGui.Console.AutoScroll.TextLabel
+	G2L["1e"] = Instance.new("TextLabel", G2L["20"]);
+	G2L["1e"]["TextWrapped"] = true;
+	G2L["1e"]["Interactable"] = false;
+	G2L["1e"]["BorderSizePixel"] = 0;
+	G2L["1e"]["TextSize"] = 20;
+	G2L["1e"]["TextScaled"] = true;
+	G2L["1e"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+	G2L["1e"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+	G2L["1e"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
+	G2L["1e"]["BackgroundTransparency"] = 1;
+	G2L["1e"]["Size"] = UDim2.new(1, 0, 1, 0);
+	G2L["1e"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
+	G2L["1e"]["Text"] = [[Auto Scroll]];
+
+
+	-- StarterGui.ScreenGui.Console.AutoScroll.UIPadding
+	G2L["1f"] = Instance.new("UIPadding", G2L["20"]);
+	G2L["1f"]["PaddingTop"] = UDim.new(0, 1);
+	G2L["1f"]["PaddingBottom"] = UDim.new(0, 1);
+
 
 	-- StarterGui.ScreenGui.ConsoleHandler
 	G2L["1c"] = Instance.new("LocalScript", G2L["1"]);
@@ -368,8 +399,8 @@ local function main()
 	-- StarterGui.ScreenGui.ConsoleHandler.SyntaxHighlighter
 	G2L["1d"] = Instance.new("ModuleScript", G2L["1c"]);
 	G2L["1d"]["Name"] = [[SyntaxHighlighter]];
-	
-	
+
+
 	-- Require G2L wrapper
 	local G2L_REQUIRE = require;
 	local G2L_MODULES = {};
@@ -568,12 +599,13 @@ local function main()
 			return highlighter
 		end;
 	};
-	
+
 	Console.Init = function()
 		-- StarterGui.ScreenGui.ConsoleHandler
 		local script = G2L["1c"];
 
 		local CtrlScroll = false
+		local AutoScroll = false
 
 		local LogService = game:GetService("LogService")
 		local Players = game:GetService("Players")
@@ -625,6 +657,22 @@ local function main()
 				end
 			end
 		end)
+
+		if AutoScroll == true then
+			Console.AutoScroll.BackgroundColor3 = Color3.fromRGB(11, 90, 175)
+		elseif AutoScroll == false then
+			Console.AutoScroll.BackgroundColor3 = Color3.fromRGB(56, 56, 56)
+		end
+		Console.AutoScroll.MouseButton1Click:Connect(function()
+			AutoScroll = not AutoScroll
+			if AutoScroll == true then
+				Console.AutoScroll.BackgroundColor3 = Color3.fromRGB(11, 90, 175)
+				Console.Output.CanvasPosition = Vector2.new(0, 9e9)
+			elseif AutoScroll == false then
+				Console.AutoScroll.BackgroundColor3 = Color3.fromRGB(56, 56, 56)
+			end
+		end)
+
 		-- Console part
 		local displayedOutput = {}
 		local OutputLimit = Console.Output.OutputLimit
@@ -672,7 +720,7 @@ local function main()
 		end)
 
 		local focussedOutput
-		
+
 		LogService.MessageOut:Connect(function(msg, msgtype)
 			local formattedText = ""
 			local unformattedText = ""
@@ -717,6 +765,10 @@ local function main()
 
 			newOutputText.Parent = Console.Output
 			newOutputText.Visible = true
+
+			if AutoScroll then
+				Console.Output.CanvasPosition = Vector2.new(0, 9e9)
+			end
 		end)
 
 		Console.Output.MouseLeave:Connect(function()
