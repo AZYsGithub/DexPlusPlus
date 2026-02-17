@@ -231,10 +231,10 @@ local function main()
 			end
 		end)
 
-		RunService.RenderStepped:Connect(function()
+		RunService.RenderStepped:Connect(function(dt)
 			if camera and model then
 				if not dragging and ModelViewer.AutoRotate then
-					rotationY += ModelViewer.RotationSpeed
+					rotationY += ModelViewer.RotationSpeed * dt * 60
 				end
 				
 				local center = model.PrimaryPart.Position
