@@ -14,7 +14,7 @@ Since the original Dex is the last release and Moon have discontinued it, it sti
 Here are the features that were added/fixed in Dex++
 - Using New Roblox Studio Icons
 - Updated API
-- Uses Konstant as fallback decompilers (for shitsploits who doesn't have it)
+- Uses Konstant, [Advanced Decompiler](https://github.com/w-a-e/Advanced-Decompiler-V3) and [Shiny](https://github.com/rocult/shiny)/[Medal](https://github.com/shrimp-nz/medal) as fallback decompilers (for shitsploits who doesn't have it)
     > 'getscriptbytecode' is required
 - Uses [USSI](https://github.com/luau/UniversalSynSaveInstance/tree/main) as fallback saveinstance
 - Mobile Input Support (Window drag, resizing works fully on touch)
@@ -45,6 +45,8 @@ Every donation is highly apreciated, this is compeletely optional.
 ## Third Party Components
 - Konstant Decompiler (Let me know)
 - [UniversalSynapseSaveInstance (USSI)](https://github.com/luau/UniversalSynSaveInstance)
+- [Advanced Decompiler](https://github.com/w-a-e/Advanced-Decompiler-V3)
+- [Shiny](https://github.com/rocult/shiny)/[Medal](https://github.com/shrimp-nz/medal)
 
 ## License
 [![Dex++ License](https://img.shields.io/badge/Dex++-License-green)](https://github.com/AZYsGithub/DexPlusPlus/blob/main/LICENSE)
