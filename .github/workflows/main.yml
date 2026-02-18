@@ -1,0 +1,3 @@
+steps:
+  - name: yesno
+    run: ls $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/
