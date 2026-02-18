@@ -36,7 +36,7 @@ end
 local isFsSupported = readfile and writefile and isfile and isfolder and listfiles and delfile and delfolder
 
 -- Main vars
-local Main, Explorer, Properties, ScriptViewer, Console, SaveInstance, ModelViewer--[[, SecretServicePanel]], DefaultSettings, Notebook, Serializer, Lib local ggv = getgenv or nil
+local Main, Explorer, Properties, ScriptViewer, Console, SaveInstance, ModelViewer, SettingsWindow--[[, SecretServicePanel]], DefaultSettings, Notebook, Serializer, Lib local ggv = getgenv or nil
 local API, RMD
 
 -- Default Settings
@@ -112,12 +112,22 @@ DefaultSettings = (function()
 				Bracket = rgb(204,204,204)
 			},
 		},
+		ScriptViewer = {
+			ShowMoreInfo = true;
+		},
 		Window = {
 			TitleOnMiddle = false,
 			Transparency = .2
 		},
+		Decompiler = {
+			DecompilerFallback = "Konstant", --Konstant, Shiny, AdvancedDecompiler
+			PreferDecompilerFallback = false,
+			ShinyDecompilerPort = 3000,
+		},
+		
 		RemoteBlockWriteAttribute = false, -- writes attribute to remote instance if remote is blocked/unblocked
 		ClassIcon = "NewDark",
+		
 		-- What available icons:
 		-- > Vanilla3
 		-- > Old
@@ -165,16 +175,18 @@ end
 Main = (function()
 	local Main = {}
 
-	Main.ModuleList = {"Explorer","Properties","ScriptViewer","Console","SaveInstance","ModelViewer"}
+	Main.ModuleList = {"Explorer","Properties","ScriptViewer","Console","SaveInstance","ModelViewer","SettingsWindow"}
 	Main.Elevated = false
 	Main.AllowDraggableOnMobile = true
 	Main.MissingEnv = {}
-	Main.Version = "2.2"
+	Main.Version = "3.0"
 	Main.Mouse = plr:GetMouse()
 	Main.AppControls = {}
 	Main.Apps = Apps
 	Main.MenuApps = {}
-	Main.GitRepoName = "AZYsGithub/DexPlusPlus"
+	Main.GitName = "AZYsGithub"
+	Main.RepoName = "DexPlusPlus"
+	Main.GitRepoName = Main.GitName.."/"..Main.RepoName
 
 	Main.DisplayOrders = {
 		SideWindow = 8,
@@ -182,6 +194,8 @@ Main = (function()
 		Menu = 100000,
 		Core = 101000
 	}
+	
+	Main.Plugins = {}
 	
 	--[[Main.LoadAdonisBypass = function()
 		-- skidded off reddit :pensive:
@@ -257,9 +271,17 @@ Main = (function()
 		return output
 	end
 	
+	Main.GetSecureContainer = function()
+		return
+			syn and syn.protect_gui or
+			gethui and gethui() or
+			service.CoreGui or
+			service.Players.LocalPlayer:WaitForChild("PlayerGui")
+	end
+	
 	Main.SecureGui = function(gui)
 		--warn("Secured: "..gui.Name)
-		gui.Name = Main.GetRandomString()
+		gui.Name = "_DPP_".. Main.GetRandomString()
 		-- service already using cloneref
 		if gethui then
 			gui.Parent = gethui()
@@ -320,12 +342,6 @@ Main = (function()
 				end
 
 				if not control then Main.Error("Missing Embedded Module: "..name) end
-			elseif _G.DebugLoadModel then -- Load Debug Model File
-				local model = Main.DebugModel
-				if not model then model = oldgame:GetObjects(getsynasset("AfterModules.rbxm"))[1] end
-
-				control = loadstring(model.Modules[name].Source)()
-				print("Locally Loaded Module",name,control)
 			else
 				-- Get hash data
 				local hashs = Main.ModuleHashData
@@ -376,6 +392,28 @@ Main = (function()
 			return moduleData
 		end
 	end
+	
+	Main.LoadPluginFile = function(pluginDir)
+		if env.readfile then
+			if isfile(pluginDir) then
+				local preloadedPlugin = loadfile and loadfile(pluginDir) or loadstring(env.readfile(pluginDir))
+				local loadedPlugin = preloadedPlugin()
+				
+				local control = loadedPlugin
+				control.InitDeps(Main.GetInitDeps())
+
+				local moduleData = control.Main()
+				Apps[pluginDir] = moduleData
+				Main.AppControls[pluginDir] = control
+				
+				moduleData.PluginData = control.PluginData
+				
+				return moduleData
+			else
+				Main.Error("CANNOT FIND FILE MODULE "..pluginDir)
+			end
+		end
+	end
 
 	Main.LoadModules = function()
 		for i,v in pairs(Main.ModuleList) do
@@ -393,6 +431,8 @@ Main = (function()
 		SaveInstance = Apps.SaveInstance
 		ModelViewer = Apps.ModelViewer
 		Notebook = Apps.Notebook
+		SettingsWindow = Apps.SettingsWindow
+		
 		
 		--SecretServicePanel = Apps.SecretServicePanel
 		local appTable = {
@@ -403,9 +443,11 @@ Main = (function()
 			SaveInstance = SaveInstance,
 			ModelViewer = ModelViewer,
 			Notebook = Notebook,
-			
+			SettingsWindow = SettingsWindow
 			--SecretServicePanel = SecretServicePanel,
 		}
+		
+		
 
 		Main.AppControls.Lib.InitAfterMain(appTable)
 		for i,v in pairs(Main.ModuleList) do
@@ -492,16 +534,29 @@ Main = (function()
 		end
 		env.request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 		
-		env.decompile = decompile or (function()
+		env.isdecompile = function()
+			return typeof(decompile) == "function" or typeof(getscriptbytecode) == "function" or false
+		end
+		
+		env.isdecompilefallback = function()
+			return typeof(decompile) ~= "function" or typeof(getscriptbytecode) == "function" or false
+		end
+		
+		
+		-- DECOMPILERS
+		
+		local AdvancedDecompilerCache
+		pcall(function()
+			AdvancedDecompilerCache = loadstring(game:HttpGet("https://raw.githubusercontent.com/"..Main.GitName.."/Advanced-Decompiler-V3/refs/heads/main/init.lua"))()
+		end)
+		
+		local konstant_last_call = 0
+		
+		local function KonstantDec(...)
 			-- by lovrewe
 			--warn("No built-in decompiler exists, using Konstant decompiler...")
 			--assert(getscriptbytecode, "Exploit not supported.")
-			
-			if not env.getscriptbytecode then --[[warn('Konstant decompiler is not supported. "getscriptbytecode" is missing.')]] return end
-
 			local API = "http://api.plusgiant5.com"
-
-			local last_call = 0
 
 			local request = env.request
 
@@ -512,12 +567,12 @@ Main = (function()
 					return `-- Failed to get script bytecode, error:\n\n--[[\n{bytecode}\n--]]`
 				end
 
-				local time_elapsed = os.clock() - last_call
+				local time_elapsed = os.clock() - konstant_last_call
 				if time_elapsed <= .5 then
 					task.wait(.5 - time_elapsed)
 				end
 
-				local httpResult = request({
+				local httpResult = env.request({
 					Url = API .. konstantType,
 					Body = bytecode,
 					Method = "POST",
@@ -526,7 +581,7 @@ Main = (function()
 					}
 				})
 
-				last_call = os.clock()
+				konstant_last_call = os.clock()
 
 				if (httpResult.StatusCode ~= 200) then
 					return `-- Error occurred while requesting Konstant API, error:\n\n--[[\n{httpResult.Body}\n--]]`
@@ -535,15 +590,47 @@ Main = (function()
 				end
 			end
 
-			local function decompile(scriptPath)
+			local function konstantDecompile(scriptPath)
 				return call("/konstant/decompile", scriptPath)
 			end
 
-			getgenv().decompile = decompile
-			
-			env.decompile = decompile
-			return decompile
-		end)()
+			return konstantDecompile(...)
+		end
+		local ADDec = AdvancedDecompilerCache or function() return "Failed to load Advanced Decompiler" end
+
+		local function ShinyDec(script_instance)
+			if typeof(crypt) ~= "table" then return "'crypt' library is missing!" end
+
+			local bytecode = getscriptbytecode(script_instance)
+			local encoded = crypt.base64encode(bytecode)
+			return env.request(
+				{
+					Url = "http://localhost:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort).."/luau/decompile",
+					Method = "POST",
+					Body = encoded
+				}
+			).Body
+		end
+		env.decompile = function(...)
+			if typeof(decompile) == "function" and Settings.Decompiler.PreferDecompilerFallback == false then
+				return decompile(...)
+			elseif typeof(getscriptbytecode) == "function" then
+				local fallbackMode = Settings.Decompiler.DecompilerFallback
+				
+				if fallbackMode == "Konstant" then
+					return KonstantDec(...)
+				elseif fallbackMode == "AdvancedDecompiler" then
+					return ADDec(...)
+				elseif  fallbackMode == "Shiny" then
+					return ShinyDec(...)
+				end
+			end
+		end
+		
+		--[[if Main.Elevated then
+			getgenv().decompile = env.decompile
+		end]]
+		
 
 		if identifyexecutor then
 			Main.Executor = identifyexecutor()
@@ -667,8 +754,9 @@ Main = (function()
 	--warn(Main.ExportSettings())
 
 	Main.LoadSettings = function()
-		local s, data = pcall(env.readfile or error, "DexSettings.json")
+		local s, data = pcall(env.readfile or error, "DexPlusPlusSettings.json")
 		if s and data and data ~= "" then
+			
 			local s, decoded = pcall(service.HttpService.JSONDecode, service.HttpService, data)
 			if s and decoded then
 
@@ -688,7 +776,6 @@ Main = (function()
 				for k, v in pairs(deserializedData) do
 					Settings[k] = v
 				end
-
 			else
 				warn("failed to decode settings json")
 			end
@@ -1284,7 +1371,7 @@ Main = (function()
 			{16,"UIGridLayout",{CellSize=UDim2.new(0,66,0,74),Parent={15},SortOrder=2,}},
 			{17,"Frame",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Name="App",Parent={1},Size=UDim2.new(0,100,0,100),Visible=false,}},
 			{18,"TextButton",{AutoButtonColor=false,BackgroundColor3=Color3.new(0.2352941185236,0.2352941185236,0.2352941185236),BorderSizePixel=0,Font=3,Name="Main",Parent={17},Size=UDim2.new(1,0,0,60),Text="",TextColor3=Color3.new(0,0,0),TextSize=14,}},
-			{19,"ImageLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Image="rbxassetid://6579106223",ImageRectSize=Vector2.new(32,32),Name="Icon",Parent={18},Position=UDim2.new(0.5,-16,0,4),ScaleType=4,Size=UDim2.new(0,32,0,32),}},
+			{19,"ImageLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,Image="rbxassetid://129589545519436",ImageRectSize=Vector2.new(32,32),Name="Icon",Parent={18},Position=UDim2.new(0.5,-16,0,4),ScaleType=4,Size=UDim2.new(0,32,0,32),}},
 			{20,"TextLabel",{BackgroundColor3=Color3.new(1,1,1),BackgroundTransparency=1,BorderSizePixel=0,Font=3,Name="AppName",Parent={18},Position=UDim2.new(0,2,0,38),Size=UDim2.new(1,-4,1,-40),Text="Explorer",TextColor3=Color3.new(1,1,1),TextSize=14,TextTransparency=0.10000000149012,TextTruncate=1,TextWrapped=true,TextYAlignment=0,}},
 			{21,"Frame",{BackgroundColor3=Color3.new(0,0.66666668653488,1),BorderSizePixel=0,Name="Highlight",Parent={18},Position=UDim2.new(0,0,1,-2),Size=UDim2.new(1,0,0,2),}},
 		})
@@ -1317,7 +1404,15 @@ Main = (function()
 		
 		local infoDexIntro, isInfoCD
 		
-		openButton.MainFrame.BottomFrame.Settings.Visible = false -- hide it for now
+		--openButton.MainFrame.BottomFrame.Settings.Visible = false
+		
+		openButton.MainFrame.BottomFrame.Settings.MouseButton1Click:Connect(function()
+			if not SettingsWindow.Window.Closed then
+				SettingsWindow.Window:Hide()
+			else
+				SettingsWindow.Window:Show()
+			end		
+		end)
 		
 		openButton.MainFrame.BottomFrame.Information.MouseButton1Click:Connect(function()
 			local duration = 1
@@ -1332,11 +1427,11 @@ Main = (function()
 			isInfoCD = true
 			if not infoDexIntro then
 				infoDexIntro = Main.CreateIntro("Running")
-				
+				--Main.AppControls ~= {}
 				coroutine.wrap(function()
-					while infoDexIntro do
+					while infoDexIntro and openButton.Parent ~= nil do
 						for i,text in Infos do
-							if not infoDexIntro then break end
+							if not infoDexIntro or openButton.Parent == nil then break end
 							infoDexIntro.SetProgress(text,(1 / #Infos) * i)
 							task.wait(duration)
 						end
@@ -1362,7 +1457,7 @@ Main = (function()
 		Main.CreateApp({Name = "Properties", IconMap = Main.LargeIcons, Icon = "Properties", Open = true, Window = Properties.Window})
 
 		local cptsOnMouseClick = nil
-		Main.CreateApp({Name = "Click part to select", IconMap = Main.LargeIcons, Icon = 6, OnClick = function(callback)
+		Main.CreateApp({Name = "Click part to select", IconMap = Explorer.ClassIcons, Icon = "SelectionBox", OnClick = function(callback)
 			if callback then
 				local mouse = Main.Mouse
 				cptsOnMouseClick = mouse.Button1Down:Connect(function()
@@ -1379,15 +1474,18 @@ Main = (function()
 
 		Main.CreateApp({Name = "Notepad", IconMap = Main.LargeIcons, Icon = "Script_Viewer", Window = ScriptViewer.Window})
 		
-		Main.CreateApp({Name = "Console", IconMap = Main.LargeIcons, Icon = "Output", Window = Console.Window})
+		Main.CreateApp({Name = "Console", IconMap = Main.LargeIcons, Icon = "Executor", Window = Console.Window})
 		
-		Main.CreateApp({Name = "Save Instance", IconMap = Main.LargeIcons, Icon = "Watcher", Window = SaveInstance.Window})
+		Main.CreateApp({Name = "Save Instance", IconMap = Main.LargeIcons, Icon = "Book", Window = SaveInstance.Window})
 		
-		Main.CreateApp({Name = "3D Viewer", IconMap = Explorer.LegacyClassIcons, Icon = 54, Window = ModelViewer.Window})
+		Main.CreateApp({Name = "3D Viewer", IconMap = Main.LargeIcons, Icon = "Object", Window = ModelViewer.Window})
 
 		--Main.CreateApp({Name = "Secret Service Panel", IconMap = Main.LargeIcons, Icon = "Output", Window = SecretServicePanel.Window})
-
-
+		
+		for _, loadedplugin in pairs(Main.Plugins) do
+			Main.CreateApp({Name = loadedplugin.PluginData.FriendlyName, IconMap = Explorer.ClassIcons, Icon = "Attachment", Window = loadedplugin.Window})
+		end
+		
 		Lib.ShowGui(gui)
 	end
 
@@ -1403,6 +1501,12 @@ Main = (function()
 		makefolder("dex/ModuleCache")
 	end
 
+	Main.SaveCurrentSettings = function()
+		if writefile then
+			writefile("DexPlusPlusSettings.json", Main.ExportSettings())
+		end
+	end
+
 	Main.LocalDepsUpToDate = function()
 		return Main.DepsVersionData and Main.ClientVersion == Main.DepsVersionData[1]
 	end
@@ -1410,12 +1514,13 @@ Main = (function()
 	Main.Init = function()
 		Main.Elevated = pcall(function() local a = game:GetService("CoreGui"):GetFullName() end)
 		
-		if writefile and isfile and not isfile("DexSettings.json") then
-			writefile("DexSettings.json", Main.ExportSettings())
+		-- saves new settings if does not exist
+		if isfile and not isfile("DexPlusPlusSettings.json") then
+			Main.SaveCurrentSettings()
 		end
 		
 		Main.InitEnv()
-		Main.LoadSettings()
+		Main.LoadSettings() -- loads the settings before init
 		
 		Main.SetupFilesystem()
 
@@ -1437,9 +1542,9 @@ Main = (function()
 			SelectChildren = 28,       SelectChildren_Disabled = 29,    InsertObject = 30,     ViewScript = 31,        AddStar = 32,         RemoveStar = 33,          Script_Disabled = 34,
 			LocalScript_Disabled = 35, Play = 36,                       Pause = 37,            Rename_Disabled = 38,   Empty = 1000
 		})
-		Main.LargeIcons = Lib.IconMap.new("rbxassetid://6579106223",256,256,32,32)
+		Main.LargeIcons = Lib.IconMap.new("rbxassetid://129589545519436",256,256,32,32)
 		Main.LargeIcons:SetDict({
-			Explorer = 0, Properties = 1, Script_Viewer = 2, Watcher = 3, Output = 4
+			Explorer = 0, Properties = 1, Script_Viewer = 2, Watcher = 3, Output = 4, ScriptEdit = 5, Book = 6, Executor = 7, Object = 8, Honey = 9
 		})
 		
 		--[[ Loading bypasses
@@ -1496,15 +1601,39 @@ Main = (function()
 		Lib.FastWait()
 
 		-- Init other modules
-		intro.SetProgress("Initializing Modules",0.9)
+		intro.SetProgress("Initializing Modules",0.8)
 		Explorer.Init()
 		Properties.Init()
 		ScriptViewer.Init()
 		Console.Init()
 		SaveInstance.Init()
 		ModelViewer.Init()
-		
+		SettingsWindow.Init()
 		--SecretServicePanel.Init()
+		
+		
+		if env.readfile and listfiles then
+			if #listfiles("dex/plugins") > 0 then
+				intro.SetProgress("Loading Plugin Files",0.8)
+				for _, pluginDir in pairs(listfiles("dex/plugins")) do
+					local moduleData = Main.LoadPluginFile(pluginDir)
+					moduleData.PluginData = moduleData.PluginData or {}
+
+					moduleData.Init()
+
+					local pluginFriendlyName = moduleData.PluginData.FriendlyName or moduleData.Window.GuiElems.Title.Text or "Unnamed Plugin"
+					local pluginName = moduleData.PluginData.Name or moduleData.Window.GuiElems.Title.Text:gsub(" ", "") or "unnamedPlugin"
+
+					intro.SetProgress("Initializing Plugin: ".. pluginFriendlyName,0.9)
+
+					moduleData.PluginData.Name = pluginName
+					moduleData.PluginData.FriendlyName = pluginFriendlyName
+
+					table.insert(Main.Plugins, moduleData)
+				end
+			end	
+		end
+		
 		
 		Lib.FastWait()
 
@@ -1522,6 +1651,23 @@ Main = (function()
 		Properties.Window:Show({Align = "right", Pos = 2, Size = 0.5, Silent = true})
 		
 		Lib.DeferFunc(function() Lib.Window.ToggleSide("right") end)
+	end
+	
+	Main.Uninit = function()
+		Main.MenuApps = {}
+		Main.AppControls = {}
+		Main.Plugins = {}
+		for _, gui in pairs(Main.GetSecureContainer():GetChildren()) do
+			if string.sub(gui.Name,1,5) == "_DPP_" then -- DPP stands for DexPlusPlus
+				gui:Destroy()
+			end
+		end
+	end
+
+	Main.Reinit = function()
+		Main.Uninit()
+		task.wait()
+		Main.Init()
 	end
 
 	return Main

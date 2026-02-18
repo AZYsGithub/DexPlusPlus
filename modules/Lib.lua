@@ -558,7 +558,7 @@ local function main()
 		
 		win:Show()
 	end
-
+	
 	-- Classes
 
 	Lib.Signal = (function()

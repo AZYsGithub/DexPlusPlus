@@ -956,9 +956,9 @@ local function main()
 		end
 
 		if presentClasses["LuaSourceContainer"] then
-			context:AddRegistered("VIEW_SCRIPT", not presentClasses.isViableDecompileScript or env.decompile == nil)
+			context:AddRegistered("VIEW_SCRIPT", not presentClasses.isViableDecompileScript or not env.isdecompile)
 			context:AddRegistered("DUMP_FUNCTIONS", not presentClasses.isViableDecompileScript or env.getupvalues == nil or env.getconstants == nil)
-			context:AddRegistered("SAVE_SCRIPT", not presentClasses.isViableDecompileScript or env.decompile == nil or env.writefile == nil)
+			context:AddRegistered("SAVE_SCRIPT", not presentClasses.isViableDecompileScript or not env.isdecompile or env.writefile == nil)
 			context:AddRegistered("SAVE_BYTECODE", not presentClasses.isViableDecompileScript or env.getscriptbytecode == nil or env.writefile == nil)
 
 		end
@@ -1862,7 +1862,7 @@ local function main()
 			["remotes"] = function(argString)
 				return {
 					Headers = {"local isa = game.IsA"},
-					Predicate = "isa(obj,'RemoteEvent') or isa(obj,'RemoteFunction') or isa(obj,'UnreliableRemoteFunction')"
+					Predicate = "isa(obj,'RemoteEvent') or isa(obj,'RemoteFunction') or isa(obj,'UnreliableRemoteEvent')"
 				}
 			end,
 			["bindables"] = function(argString)
@@ -2442,7 +2442,6 @@ return search]==]
 
 	Explorer.Init = function()
 		Explorer.LegacyClassIcons = Lib.IconMap.newLinear("rbxasset://textures/ClassImages.PNG", 16,16)
-		
 		if Settings.ClassIcon ~= nil and Settings.ClassIcon ~= "Old" then
 			iconData = Lib.IconMap.getIconDataFromName(Settings.ClassIcon)
 			
