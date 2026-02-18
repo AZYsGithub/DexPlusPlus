@@ -14,7 +14,7 @@ Since the original Dex is the last release and Moon have discontinued it, it sti
 Here are the features that were added/fixed in Dex++
 - Using New Roblox Studio Icons
 - Updated API
-- Uses Konstant as fallback decompiler (for shitsploits who doesn't have it)
+- Uses Konstant as fallback decompilers (for shitsploits who doesn't have it)
     > 'getscriptbytecode' is required
 - Uses [USSI](https://github.com/luau/UniversalSynSaveInstance/tree/main) as fallback saveinstance
 - Mobile Input Support (Window drag, resizing works fully on touch)
