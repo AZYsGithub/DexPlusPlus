@@ -605,7 +605,7 @@ Main = (function()
 			local encoded = crypt.base64encode(bytecode)
 			return env.request(
 				{
-					Url = "http://localhost:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort).."/luau/decompile",
+					Url = "http://127.0.0.1:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort).."/luau/decompile",
 					Method = "POST",
 					Body = encoded
 				}
