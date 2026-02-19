@@ -599,7 +599,10 @@ Main = (function()
 		local ADDec = AdvancedDecompilerCache or function() return "Failed to load Advanced Decompiler" end
 
 		local function ShinyDec(script_instance)
-			if typeof(crypt) ~= "table" then return "'crypt' library is missing!" end
+			if typeof(crypt) ~= "table" then return "-- 'crypt' library is missing!" end
+			local success, result = pcall(game:HttpGet("http://127.0.0.1:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort)))
+			if not success then return "-- Shiny decompiler is not active or port is wrong!" end
+
 
 			local bytecode = getscriptbytecode(script_instance)
 			local encoded = crypt.base64encode(bytecode)
