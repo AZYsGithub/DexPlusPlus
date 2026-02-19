@@ -600,15 +600,16 @@ Main = (function()
 
 		local function ShinyDec(script_instance)
 			if typeof(crypt) ~= "table" then return "-- 'crypt' library is missing!" end
-			local success, result = pcall(game:HttpGet("http://127.0.0.1:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort)))
+			local success, result = pcall(function()
+				return game:HttpGet("http://127.0.0.1:"..tostring(Settings.Decompiler.ShinyDecompilerPort))
+			end)
 			if not success then return "-- Shiny decompiler is not active or port is wrong!" end
-
 
 			local bytecode = getscriptbytecode(script_instance)
 			local encoded = crypt.base64encode(bytecode)
 			return env.request(
 				{
-					Url = "http://127.0.0.1:"..tostring(DefaultSettings.Decompiler.ShinyDecompilerPort).."/luau/decompile",
+					Url = "http://127.0.0.1:"..tostring(Settings.Decompiler.ShinyDecompilerPort).."/luau/decompile",
 					Method = "POST",
 					Body = encoded
 				}
