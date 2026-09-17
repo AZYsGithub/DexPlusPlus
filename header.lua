@@ -10,9 +10,6 @@
 local selection
 local nodes = {}
 
-local oldgame = game
-local game = workspace.Parent
-
 cloneref = cloneref or function(ref)
 	if not getreg then return ref end
 	
@@ -45,3 +42,6 @@ cloneref = cloneref or function(ref)
 	end
 	return f.invalidate
 end
+
+local oldgame = cloneref(game)
+local game = cloneref(workspace.Parent)
