@@ -18,7 +18,7 @@ cloneref = cloneref or function(ref)
 	local a = Instance.new("Part")
 	for _, c in pairs(getreg()) do
 		if type(c) == "table" and #c then
-			if rawget(c, "__mode") == "kvs" then
+			if rawget(c, "__mode") == "kv" then
 				for d, e in pairs(c) do
 					if e == a then
 						InstanceList = c
