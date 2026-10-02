@@ -39,6 +39,7 @@ local function main()
 	local entryTemplate,treeFrame,toolBar,descendantAddedCon,descendantRemovingCon,itemChangedCon
 	local ffa = game.FindFirstAncestorWhichIsA
 	local getDescendants = game.GetDescendants
+	local rawGame = workspace.Parent
 	local getTextSize = service.TextService.GetTextSize
 	local updateDebounce,refreshDebounce = false,false
 	local nilNode = {Obj = Instance.new("Folder")}
@@ -52,8 +53,9 @@ local function main()
 	local addObject,removeObject,moveObject = nil,nil,nil
 
 	local iconData
-	local remote_blocklist = {} -- list of remotes beng blocked, k = the remote instance, v = their old function :3
+	local remote_blocklist = {} -- k = blocked remote instance, v = the method name blocked on it (e.g. "FireServer")
 	nodes = nodes or {}
+	local dirtyParents = {} -- nodes whose child lists contain deleted nodes, compacted by InitDelCleaner
 
 	addObject = function(root)
 		if nodes[root] then return end
@@ -166,6 +168,7 @@ local function main()
 		local par = node.Parent
 		if par then
 			par.HasDel = true
+			dirtyParents[par] = true
 		end
 
 		local function recur(root)
@@ -445,7 +448,7 @@ local function main()
 		if Explorer.Dragging then return end
 		for i,v in next, selection.List do
 			local Obj = v.Obj
-			if Obj.Parent == game or Obj:IsA("Player") then
+			if Obj.Parent == rawGame or Obj:IsA("Player") then
 				return
 			end
 		end
@@ -538,8 +541,6 @@ local function main()
 		local newEntry = entryTemplate:Clone()
 		newEntry.Position = UDim2.new(0,0,0,20*(index-1))
 
-		local isRenaming = false
-
 		newEntry.InputBegan:Connect(function(input)
 			local node = tree[index + Explorer.Index]
 			if not node or selection.Map[node] or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
@@ -608,7 +609,6 @@ local function main()
 						if dist > 5 then
 							releaseEvent:Disconnect()
 							mouseEvent:Disconnect()
-							isRenaming = false
 							Explorer.StartDrag(listOffsetX, listOffsetY)
 						end
 					end
@@ -624,22 +624,14 @@ local function main()
 			local node = tree[index + Explorer.Index]
 			if not node or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
 
-			if input.UserInputType == Enum.UserInputType.Touch then
-				Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse_Over" or "Expand_Over")
-			elseif input.UserInputType == Enum.UserInputType.MouseMovement then
-				Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse_Over" or "Expand_Over")
-			end
+			Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse_Over" or "Expand_Over")
 		end)
 
 		newEntry.Indent.Expand.InputEnded:Connect(function(input)
 			local node = tree[index + Explorer.Index]
 			if not node or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
 
-			if input.UserInputType == Enum.UserInputType.Touch then
-				Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse" or "Expand")
-			elseif input.UserInputType == Enum.UserInputType.MouseMovement then
-				Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse" or "Expand")
-			end
+			Explorer.MiscIcons:DisplayByKey(newEntry.Indent.Expand.Icon, expanded[node] and "Collapse" or "Expand")
 		end)
 
 		newEntry.Indent.Expand.MouseButton1Down:Connect(function()
@@ -911,7 +903,7 @@ local function main()
 		-- context:AddRegistered("CALL_FUNCTION")
 		-- context:AddRegistered("VIEW_CONNECTIONS")
 		-- context:AddRegistered("GET_REFERENCES")
-		context:AddRegistered("COPY_API_PAGE")
+		if env.setclipboard then context:AddRegistered("COPY_API_PAGE") end
 
 		context:QueueDivider()
 
@@ -931,21 +923,11 @@ local function main()
 		if presentClasses["ProximityPrompt"] then context:AddRegistered("FIRE_PROXIMITYPROMPT", fireproximityprompt == nil) end
 		
 		
-		if presentClasses["RemoteEvent"] then context:AddRegistered("BLOCK_REMOTE", env.hookfunction == nil) end
-		if presentClasses["RemoteEvent"] then context:AddRegistered("UNBLOCK_REMOTE", env.hookfunction == nil) end
-		
-		if presentClasses["RemoteFunction"] then context:AddRegistered("BLOCK_REMOTE", env.hookfunction == nil) end
-		if presentClasses["RemoteFunction"] then context:AddRegistered("UNBLOCK_REMOTE", env.hookfunction == nil) end
-
-		if presentClasses["UnreliableRemoteEvent"] then context:AddRegistered("BLOCK_REMOTE", env.hookfunction == nil) end
-		if presentClasses["UnreliableRemoteEvent"] then context:AddRegistered("UNBLOCK_REMOTE", env.hookfunction == nil) end
-		
-		
-		if presentClasses["BindableEvent"] then context:AddRegistered("BLOCK_REMOTE", env.hookfunction == nil) end
-		if presentClasses["BindableEvent"] then context:AddRegistered("UNBLOCK_REMOTE", env.hookfunction == nil) end
-		
-		if presentClasses["BindableFunction"] then context:AddRegistered("BLOCK_REMOTE", env.hookfunction == nil) end
-		if presentClasses["BindableFunction"] then context:AddRegistered("UNBLOCK_REMOTE", env.hookfunction == nil) end
+		if presentClasses["RemoteEvent"] or presentClasses["RemoteFunction"] or presentClasses["UnreliableRemoteEvent"]
+			or presentClasses["BindableEvent"] or presentClasses["BindableFunction"] then
+			context:AddRegistered("BLOCK_REMOTE", env.hookmetamethod == nil)
+			context:AddRegistered("UNBLOCK_REMOTE", env.hookmetamethod == nil)
+		end
 		
 		
 		
@@ -972,10 +954,17 @@ local function main()
 		context:Show(Mouse.X, Mouse.Y)
 	end
 
+	-- Node for an instance Dex just parented. With deferred events DescendantAdded hasn't run yet,
+	-- so add it now; addObject returns early if the node already exists.
+	local function nodeNow(obj)
+		pcall(addObject, obj)
+		return nodes[obj]
+	end
+
 	Explorer.InitRightClick = function()
 		local context = Lib.ContextMenu.new()
 
-		context:Register("CUT",{Name = "Cut", IconMap = Explorer.MiscIcons, Icon = "Cut", DisabledIcon = "Cut_Disabled", Shortcut = "Ctrl+Z", OnClick = function()
+		context:Register("CUT",{Name = "Cut", IconMap = Explorer.MiscIcons, Icon = "Cut", DisabledIcon = "Cut_Disabled", Shortcut = "Ctrl+X", OnClick = function()
 			local destroy,clone = game.Destroy,game.Clone
 			local sList,newClipboard = selection.List,{}
 			local count = 1
@@ -1019,7 +1008,7 @@ local function main()
 					local cloned = clipboard[c]:Clone()
 					if cloned then
 						cloned.Parent = inst
-						local clonedNode = nodes[cloned]
+						local clonedNode = nodeNow(cloned)
 						if clonedNode then newSelection[count] = clonedNode count = count + 1 end
 					end
 				end
@@ -1044,7 +1033,7 @@ local function main()
 				local s,cloned = pcall(clone,inst)
 				if s and cloned then
 					cloned.Parent = instPar
-					local clonedNode = nodes[cloned]
+					local clonedNode = nodeNow(cloned)
 					if clonedNode then newSelection[count] = clonedNode count = count + 1 end
 				end
 			end
@@ -1083,13 +1072,14 @@ local function main()
 			if #sList == 0 then return end
 
 			local model = Instance.new("Model",sList[#sList].Obj.Parent)
+			local modelNode = nodeNow(model)
 			for i = 1,#sList do
 				pcall(function() sList[i].Obj.Parent = model end)
 			end
 
-			if nodes[model] then
-				selection:Set(nodes[model])
-				Explorer.ViewNode(nodes[model])
+			if modelNode then
+				selection:Set(modelNode)
+				Explorer.ViewNode(modelNode)
 			end
 		end})
 
@@ -1216,7 +1206,6 @@ local function main()
 			end
 		end})
 
-		local OldAnimation
 		context:Register("PLAY_TWEEN",{Name = "Play Tween", IconMap = Explorer.MiscIcons, Icon = "Play", OnClick = function()
 			local sList = selection.List
 
@@ -1324,7 +1313,10 @@ local function main()
 		-- this code is very bad but im lazy and it works so cope
 		local clth = function(str)
 			if str:sub(1, 28) == "game:GetService(\"Workspace\")" then str = str:gsub("game:GetService%(\"Workspace\"%)", "workspace", 1) end
-			if str:sub(1, 27 + #plr.Name) == "game:GetService(\"Players\")." .. plr.Name then str = str:gsub("game:GetService%(\"Players\"%)." .. plr.Name, "game:GetService(\"Players\").LocalPlayer", 1) end
+			local prefix = "game:GetService(\"Players\")." .. plr.Name
+			if str:sub(1, #prefix) == prefix and str:sub(#prefix + 1, #prefix + 1):match("^[%.%[:]?$") then
+				str = "game:GetService(\"Players\").LocalPlayer" .. str:sub(#prefix + 1)
+			end
 			return str
 		end
 
@@ -1394,26 +1386,30 @@ local function main()
 			RemoteFunction = "InvokeServer",
 			UnreliableRemoteEvent = "FireServer",
 
-			BindableRemote = "Fire",
+			BindableEvent = "Fire",
 			BindableFunction = "Invoke",
 		}
+		local remoteBlockHookInstalled = false
+		local function installRemoteBlockHook()
+			if remoteBlockHookInstalled then return end
+			remoteBlockHookInstalled = true
+			local old; old = env.hookmetamethod((oldgame or game), "__namecall", function(self, ...)
+				if remote_blocklist[self] == getnamecallmethod() then
+					return nil
+				end
+				return old(self,...)
+			end)
+		end
 		context:Register("BLOCK_REMOTE",{Name = "Block From Firing", IconMap = Explorer.MiscIcons, Icon = "Delete", DisabledIcon = "Empty", OnClick = function()
+			installRemoteBlockHook()
 			local sList = selection.List
 			for i, list in sList do
 				local obj = list.Obj
 				if not remote_blocklist[obj] then
-					local functionToHook = ClassFire[obj.ClassName]
-					remote_blocklist[obj] = true
-					local old; old = env.hookmetamethod((oldgame or game), "__namecall", function(self, ...)
-						if remote_blocklist[obj] and self == obj and getnamecallmethod() == functionToHook then
-							return nil
-						end
-						return old(self,...)
-					end)
+					remote_blocklist[obj] = ClassFire[obj.ClassName]
 					if Settings.RemoteBlockWriteAttribute then
 						obj:SetAttribute("IsBlocked", true)
 					end
-					--print("blocking ",functionToHook)
 				end
 			end
 		end})
@@ -1496,16 +1492,11 @@ local function main()
 			for _, v in ipairs(selection.List) do if v.Obj and v.Obj:IsA("ProximityPrompt") then fireproximityprompt(v.Obj) end end
 		end})
 
-		context:Register("VIEW_SCRIPT",{Name = "View Script", IconMap = Explorer.MiscIcons, Icon = "ViewScript", DisabledIcon = "Empty", OnClick = function()
-			local scr = selection.List[1] and selection.List[1].Obj
-			if scr then ScriptViewer.ViewScript(scr) end
-		end})
-
 		context:Register("SAVE_SCRIPT",{Name = "Save Script", IconMap = Explorer.MiscIcons, Icon = "Save", DisabledIcon = "Empty", OnClick = function()
 			for _, v in next, selection.List do
 				if v.Obj:IsA("LuaSourceContainer") and env.isViableDecompileScript(v.Obj) then
 					local success, source = pcall(env.decompile, v.Obj)
-					if not success or not source then source = ("-- DEX - %s failed to decompile %s"):format(env.executor, v.Obj.ClassName) end
+					if not success or not source then source = ("-- DEX - %s failed to decompile %s"):format(tostring(Main.Executor), v.Obj.ClassName) end
 					local fileName = ("%s_%s_%i_Source.txt"):format(env.parsefile(v.Obj.Name), v.Obj.ClassName, game.PlaceId)
 					--env.writefile(fileName, source)
 					Lib.SaveAsPrompt(fileName, source)
@@ -1577,7 +1568,7 @@ local function main()
 
 			for i,v in next, service.Players:GetPlayers() do
 				if v.Character and nodes[v.Character] then
-					if i == 1 then Explorer.MakeNodeVisible(v.Character) end
+					if i == 1 then Explorer.MakeNodeVisible(nodes[v.Character]) end
 					table.insert(newSelection, nodes[v.Character])
 				end
 			end
@@ -1701,7 +1692,7 @@ local function main()
 		local formatLuaString = Lib.FormatLuaString
 
 		while curObj do
-			if curObj == game then
+			if curObj == game or curObj == rawGame then
 				path = "game"..path
 				break
 			end
@@ -1723,13 +1714,12 @@ local function main()
 					local parCh = getCh(parObj)
 					local fcInd = tableFind(parCh,curObj)
 					indexName = ":GetChildren()["..fcInd.."]"
-				elseif parObj == game and API.Classes[className] and API.Classes[className].Tags.Service then
+				elseif (parObj == game or parObj == rawGame) and API.Classes[className] and API.Classes[className].Tags.Service then
 					indexName = ':GetService("'..className..'")'
 				end
 			elseif parObj == nil then
 				local getnil = "local getNil = function(name, class) for _, v in next, getnilinstances() do if v.ClassName == class and v.Name == name then return v end end end"
-				local gotnil = "\n\ngetNil(\"%s\", \"%s\")"
-				indexName = getnil .. gotnil:format(curObj.Name, className)
+				indexName = getnil .. ('\n\ngetNil("%s", "%s")'):format(formatLuaString(curObj.Name), className)
 			end
 
 			path = indexName..path
@@ -1894,7 +1884,7 @@ local function main()
 			end,
 		},
 		Default = function(argString,caseSensitive)
-			local cleanString = argString:gsub("\"","\\\""):gsub("\n","\\n")
+			local cleanString = argString:gsub("\\","\\\\"):gsub("\"","\\\""):gsub("\n","\\n")
 			if caseSensitive then
 				return {
 					Headers = {"local find = string.find"},
@@ -2315,7 +2305,7 @@ return search]==]
 
 				local id = sys.ClickId
 				Lib.FastWait(sys.ComboTime)
-				if combo == 1 and id == sys.ClickId and sys.IsRenaming and selection.Map[node] then
+				if combo == 1 and id == sys.ClickId and sys.IsRenaming and selection.Map[node] and Settings.Explorer.ClickToRename then
 					Explorer.SetRenamingNode(node)
 				end
 			elseif button == 2 then
@@ -2330,8 +2320,9 @@ return search]==]
 			local fw = Lib.FastWait
 			while true do
 				local processed = false
-				local c = 0
-				for _,node in next,nodes do
+				local dirty = dirtyParents
+				dirtyParents = {} -- parents marked while we yield below go into the next pass
+				for node in next,dirty do
 					if node.HasDel then
 						local delInd
 						for i = 1,#node do
@@ -2354,11 +2345,6 @@ return search]==]
 						end
 						node.HasDel = false
 						processed = true
-						fw()
-					end
-					c = c + 1
-					if c > 10000 then
-						c = 0
 						fw()
 					end
 				end
@@ -2560,6 +2546,7 @@ return search]==]
 
 		-- Fill in nodes
 		nodes[game] = {Obj = game}
+		nodes[rawGame] = nodes[game]
 		expanded[nodes[game]] = true
 
 		-- Nil Instances

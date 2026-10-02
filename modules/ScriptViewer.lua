@@ -64,11 +64,11 @@ local function main()
 		local getconstants = (debug and debug.getconstants) or getconstants or getconsts
 		local getinfo = (debug and (debug.getinfo or debug.info)) or getinfo
 		local original = ("\n-- // Function Dumper made by King.Kevin\n-- // Script Path: %s\n\n--[["):format(getPath(scr))
-		local dump = original
+		local dumpParts = {}
 		local functions, function_count, data_base = {}, 0, {}
 		function functions:add_to_dump(str, indentation, new_line)
-			local new_line = new_line or true
-			dump = dump .. ("%s%s%s"):format(string.rep("		", indentation), tostring(str), new_line and "\n" or "")
+			local new_line = new_line ~= false
+			dumpParts[#dumpParts + 1] = ("%s%s%s"):format(string.rep("		", indentation), tostring(str), new_line and "\n" or "")
 		end
 		function functions:get_function_name(func)
 			local n = getinfo(func).name
@@ -131,14 +131,14 @@ local function main()
 			end
 		end
 		for _, _function in pairs(env.getgc()) do
-			if typeof(_function) == "function" and getfenv(_function).script and getfenv(_function).script == scr then
+			if typeof(_function) == "function" and getfenv(_function).script == scr then
 				functions:dump_function(_function, 0)
 				functions:add_to_dump("\n" .. ("="):rep(100), 0, false)
 			end
 		end
 		local source = codeFrame:GetText()
 
-		if dump ~= original then source = source .. dump .. "]]" end
+		if #dumpParts > 0 then source = source .. original .. table.concat(dumpParts) .. "]]" end
 		codeFrame:SetText(source)
 		
 		window:Show()
@@ -238,7 +238,7 @@ local function main()
 
 		execute.MouseButton1Click:Connect(function()
 			local source = codeFrame:GetText()
-			env.loadstring(source)()
+			assert(env.loadstring(source))()
 		end)
 
 		clear = Instance.new("TextButton",window.GuiElems.Content)
@@ -264,7 +264,7 @@ local function main()
 			
 			if Settings.ScriptViewer.ShowMoreInfo then
 				source = source .. "-- Script Path: "..getPath(scr).."\n"
-				if (scr.ClassName == "Script" and (scr.RunContext == Enum.RunContext.Legacy or scr.RunContext == Enum.RunContext.Server)) or not scr:IsA("LocalScript") then
+				if not env.isViableDecompileScript(scr) then
 					source = source .. "-- Reason: The script is not running on client. (attempt to decompile ServerScript or 'Script' with RunContext Server)\n"
 				elseif not env.isdecompile() then
 					source = source .. "-- Reason: Your executor does not support decompiler. (missing 'decompile' function and 'getscriptbytecode' function as fallback)\n"

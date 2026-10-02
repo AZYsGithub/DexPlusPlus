@@ -199,13 +199,12 @@ local function main()
 		local decompileIgnore = AddTextbox("Decompile Ignore", table.concat(SaveInstanceArgs.DecompileIgnore, ","), 50)
 		decompileIgnore.TextBox.FocusLost:Connect(function()
 			local inputText = decompileIgnore.TextBox.Text
-			local rawList = string.split(inputText, ", ") or string.split(inputText, ",")
 			local finalList = {}
 
-			for _, text in ipairs(rawList) do
-				local split = string.split(text, ",") or string.split(text, ", ")
-				for _, textFound in ipairs(split) do
-					table.insert(finalList, textFound)
+			for _, text in ipairs(string.split(inputText, ",")) do
+				local trimmed = text:match("^%s*(.-)%s*$")
+				if trimmed ~= "" then
+					table.insert(finalList, trimmed)
 				end
 			end
 			SaveInstanceArgs.DecompileIgnore = finalList

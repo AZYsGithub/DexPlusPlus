@@ -556,10 +556,6 @@ local function main()
 							table.insert(tokens, currentToken)
 							currentToken = character
 							inString = character
-						elseif operatorsSet[character] then
-							table.insert(tokens, currentToken)
-							table.insert(tokens, character)
-							currentToken = ""
 						elseif character:match("[%w_]") then
 							currentToken = currentToken .. character
 						else
@@ -709,9 +705,18 @@ local function main()
 					log:Destroy()
 				end
 			end
+			table.clear(displayedOutput)
 		end)
 
 		local focussedOutput
+
+		OutputTextSize:GetPropertyChangedSignal("Value"):Connect(function()
+			for _, log in ipairs(displayedOutput) do
+				if typeof(log) == "Instance" then
+					log.TextSize = OutputTextSize.Value
+				end
+			end
+		end)
 
 		LogService.MessageOut:Connect(function(msg, msgtype)
 			local formattedText = ""
@@ -742,9 +747,6 @@ local function main()
 			end
 
 			newOutputText.TextSize = OutputTextSize.Value
-			OutputTextSize:GetPropertyChangedSignal("Value"):Connect(function()
-				newOutputText.TextSize = OutputTextSize.Value
-			end)
 
 			newOutputText.Focused:Connect(function()
 				focussedOutput = newOutputText
@@ -782,7 +784,7 @@ local function main()
 		Console.CommandLine.ScrollingFrame.TextBox.FocusLost:Connect(function(enterPressed)
 			if enterPressed and Console.CommandLine.ScrollingFrame.TextBox.Text ~= "" then
 				print("> "..Console.CommandLine.ScrollingFrame.TextBox.Text)
-				loadstring(Console.CommandLine.ScrollingFrame.TextBox.Text)()
+				assert(loadstring(Console.CommandLine.ScrollingFrame.TextBox.Text))()
 			end
 		end)
 	end

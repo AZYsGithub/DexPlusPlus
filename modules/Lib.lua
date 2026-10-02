@@ -392,7 +392,7 @@ local function main()
 			if con then con:Disconnect() con = nil end
 			if target then
 				con = target.Changed:Connect(function(prop)
-					if not disabled and prop == "AbsolutePosition" or prop == "AbsoluteSize" then
+					if not disabled and (prop == "AbsolutePosition" or prop == "AbsoluteSize") then
 						update()
 					end
 				end)
@@ -414,7 +414,7 @@ local function main()
 				disabled = true
 			end,
 			Destroy = function()
-				con:Disconnect()
+				if con then con:Disconnect() end
 				con = nil
 			end,
 		}
@@ -554,9 +554,10 @@ local function main()
 		win.Elements.Error.Text = ""
 		win.Elements.NameBox:SetText(filename or "")
 		
-		win.Elements.SaveButton:SetDisabled(win.Elements.NameBox:GetText() == 0)
-		
+		win.Elements.SaveButton:SetDisabled(#win.Elements.NameBox:GetText() == 0)
+
 		win:Show()
+		repeat task.wait() until win.Closed
 	end
 	
 	-- Classes
@@ -1907,7 +1908,7 @@ local function main()
 			if self.IndexDict[key] then
 				self:Display(obj, self.IndexDict[key])
 			else
-				local rmdEntry = RMD.Classes[obj.ClassName]
+				local rmdEntry = RMD.Classes[key]
 				Explorer.ClassIcons:Display(obj, rmdEntry and rmdEntry.ExplorerImageIndex or 0)
 			end
 		end
@@ -1933,7 +1934,8 @@ local function main()
 				obj.Position = UDim2.new(-col - (pad * (col + 1) + border) / funcs.ExplorerIcons.IconSize, 0, -row - (pad * (row + 1) + border) / funcs.ExplorerIcons.IconSize, 0)
 				obj.Size = UDim2.new(MapSize.X / funcs.ExplorerIcons.IconSize, 0, MapSize.Y / funcs.ExplorerIcons.IconSize, 0)
 			elseif Settings.ClassIcon == "NewLight" or Settings.ClassIcon == "NewDark" then
-				local isService = string.find(index, "Service") and game:GetService(index)
+				local apiClass = API and API.Classes[index]
+				local isService = apiClass and apiClass.Tags.Service
 				
 				obj.Size = UDim2.fromOffset(16, 16)
 				index = (self.ExplorerIcons.Icons[index] or (isService and self.ExplorerIcons.Icons.Service) or self.ExplorerIcons.Icons.Placeholder) - 1
@@ -2509,7 +2511,7 @@ local function main()
 
 		local function moveToTop(window)
 			local found = table.find(visibleWindows,window)
-			if found then
+			if found and found ~= 1 then -- already on top: skip the full re-layout
 				table.remove(visibleWindows,found)
 				table.insert(visibleWindows,1,window)
 				updateWindows()
@@ -3543,8 +3545,6 @@ local function main()
 				IconMap = item.IconMap,
 				OnRightClick = item.OnRightClick
 			}
-			
-			newItem.DisabledIcon = newItem.Icon
 
 			if self.QueuedDivider then
 				local text = self.QueuedDividerText and #self.QueuedDividerText > 0 and self.QueuedDividerText
@@ -3953,7 +3953,7 @@ local function main()
 			["getgc"] = true,
 			["getreg"] = true,
 			["filtergc"] = true,
-			["saveinstave"] = true,
+			["saveinstance"] = true,
 			["decompile"] = true,
 			["syn"] = true,
 			["getupvalue"] = true,
@@ -4223,11 +4223,9 @@ local function main()
 			local leftSub = lines[selY+1]:sub(selX+1)
 			local rightSub = lines[sel2Y+1]:sub(1,sel2X)
 
-			local result = leftSub.."\n" 
-			for i = selY+1,sel2Y-1 do
-				result = result..lines[i+1].."\n"
-			end
-			result = result..rightSub
+			local parts = table.move(lines, selY+2, sel2Y, 2, {leftSub})
+			parts[#parts+1] = rightSub
+			local result = table.concat(parts, "\n")
 
 			return self:ConvertText(result,false)
 		end
@@ -4406,9 +4404,10 @@ local function main()
 			local rightSub = lines[sel2Y+1]:sub(sel2X+1)
 			lines[selY+1] = leftSub..rightSub
 
-			local remove = table.remove
-			for i = 1,deltaLines do
-				remove(lines,selY+2)
+			if deltaLines > 0 then
+				local n = #lines
+				table.move(lines, sel2Y+2, n, selY+2)
+				for i = n, n-deltaLines+1, -1 do lines[i] = nil end
 			end
 
 			if range == self.SelectionRange then self.SelectionRange = {{-1,-1},{-1,-1}} end
@@ -5019,7 +5018,7 @@ local function main()
 			end
 		end
 
-		funcs.ProcessTextChange = function(self)
+		funcs.ProcessTextChange = function(self,immediate)
 			local maxCols = 0
 			local lines = self.Lines
 
@@ -5031,11 +5030,27 @@ local function main()
 			end
 
 			self.MaxTextCols = maxCols
-			self:UpdateView()	
-			self.Text = table.concat(self.Lines,"\n")
-			self:MapNewLines()
-			self:PreHighlight()
-			self:Refresh()
+			self:UpdateView()
+
+			-- Rescanning the whole text for strings/comments is the slow part (~150 ms at 20k lines),
+			-- so while typing in big scripts it only runs once typing pauses. Colors catch up then.
+			local highlightId = (self.HighlightId or 0) + 1
+			self.HighlightId = highlightId
+			local function rehighlight()
+				if self.HighlightId ~= highlightId then return end
+				self.Text = table.concat(self.Lines,"\n")
+				self:MapNewLines()
+				self:PreHighlight()
+				self:Refresh()
+			end
+
+			if immediate or #lines < 2000 then
+				rehighlight()
+			else
+				self.ColoredLines = {}
+				self:Refresh()
+				task.delay(0.2, rehighlight)
+			end
 			--self.TextChanged:Fire()
 		end
 
@@ -5065,7 +5080,7 @@ local function main()
 				count = count + 1
 			end
 
-			self:ProcessTextChange()
+			self:ProcessTextChange(true)
 		end
 
 		funcs.MakeRichTemplates = function(self)
@@ -5897,7 +5912,7 @@ local function main()
 					updateColor(1)
 				end
 			end
-			hueInput.FocusLost:Connect(function() updateHue(hueInput.Text) end) hookButtons(hueInput, hueInput)
+			hueInput.FocusLost:Connect(function() updateHue(hueInput.Text) end) hookButtons(hueInput, updateHue)
 
 			local function updateSat(str)
 				local num = tonumber(str)
@@ -7206,7 +7221,9 @@ local function main()
 				self.Combo = self.Combo + 1
 				self.ClickId = tick()
 
-				task.spawn(function()
+				-- Long-press = right-click, for touch only (on PC it fired on slow left-clicks and held right-clicks)
+				local isTouch = button == 1 and service.UserInputService:GetLastInputType() == Enum.UserInputType.Touch
+				if isTouch then task.spawn(function()
 					if self.InputDown then
 						self.InputDown = false
 					else
@@ -7224,7 +7241,7 @@ local function main()
 							end;task.wait()
 						end
 					end
-				end)
+				end) end
 
 				local release
 				release = service.UserInputService.InputEnded:Connect(function(input)

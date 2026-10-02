@@ -55,11 +55,13 @@ local function main()
 	
 	local window, viewportFrame, pathLabel, settingsButton
 	local model, camera, originalModel
+	local refreshLoopRunning = false
 	
 	
 	ModelViewer.StopViewModel = function(updating)
 		if updating then
-			viewportFrame:FindFirstChildOfClass("Model"):Destroy()
+			local existing = viewportFrame:FindFirstChildOfClass("Model")
+			if existing then existing:Destroy() end
 		else
 			if camera then camera = nil end
 			if model then model = nil end
@@ -79,24 +81,35 @@ local function main()
 			-- why Model == workspace
 			-- wtf?
 			
-			if item:IsA("BasePart") and not item:IsA("Model") then			
+			if item:IsA("BasePart") and not item:IsA("Model") then
+				local wasArchivable = item.Archivable
+				item.Archivable = true
+				local clone = item:Clone()
+				item.Archivable = wasArchivable
+				if not clone then return end
+
 				model = Instance.new("Model")
 				model.Parent = viewportFrame
 
-				local clone = item:Clone()
 				clone.Parent = model
 				model.PrimaryPart = clone
 				model:SetPrimaryPartCFrame(CFrame.new(0, 0, 0))
 			elseif item:IsA("Model") then
-				item.Archivable = true
-
 			--[[if not item.PrimaryPart then
 				pathLabel.Gui.Text = "Failed to view model: No PrimaryPart is found."
 				return
 			end]]
-				if #item:GetChildren() == 0 then return end
-				
+				if #item:GetChildren() == 0 then
+					model = nil
+					return
+				end
+
+				local wasArchivable = item.Archivable
+				item.Archivable = true
 				model = item:Clone()
+				item.Archivable = wasArchivable
+				if not model then return end
+
 				model.Parent = viewportFrame
 
 				-- fallback
@@ -123,13 +136,15 @@ local function main()
 		
 		originalModel = item
 		
-		if ModelViewer.AutoRefresh and not updating then
+		if ModelViewer.AutoRefresh and not updating and not refreshLoopRunning then
+			refreshLoopRunning = true
 			task.spawn(function()
 				while model and ModelViewer.AutoRefresh do
-					
+
 					ModelViewer.ViewModel(originalModel, true)
 					task.wait(1 / ModelViewer.RefreshRate)
 				end
+				refreshLoopRunning = false
 			end)
 		end
 		
@@ -217,7 +232,7 @@ local function main()
 
 		viewportFrame.InputChanged:Connect(function(input)
 			if not ModelViewer.EnableInputCamera then return end
-			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 				local delta = input.Position - lastpos
 				lastpos = input.Position
 
@@ -232,11 +247,11 @@ local function main()
 		end)
 
 		RunService.RenderStepped:Connect(function(dt)
-			if camera and model then
+			if camera and model and model.PrimaryPart then
 				if not dragging and ModelViewer.AutoRotate then
 					rotationY += ModelViewer.RotationSpeed * dt * 60
 				end
-				
+
 				local center = model.PrimaryPart.Position
 				local offset = CFrame.new(0, 0, distance)
 				local rotation = CFrame.Angles(0, rotationY, 0) * CFrame.Angles(rotationX, 0, 0)
@@ -264,7 +279,7 @@ local function main()
 			window:Hide()
 		end})
 		context:Register("COPY_PATH",{Name = "Copy Path", OnClick = function()
-			if model then
+			if model and env.setclipboard then
 				env.setclipboard(getPath(originalModel))
 			end
 		end})
@@ -345,7 +360,7 @@ local function main()
 
 			context:AddRegistered("STOP", not ModelViewer.IsViewing)	
 			context:AddRegistered("REFRESH", not ModelViewer.IsViewing)
-			context:AddRegistered("COPY_PATH", not ModelViewer.IsViewing)
+			context:AddRegistered("COPY_PATH", not ModelViewer.IsViewing or not env.setclipboard)
 			context:AddRegistered("SAVE_INST", not ModelViewer.IsViewing)
 			context:AddDivider()
 			
