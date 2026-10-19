@@ -415,20 +415,33 @@ local function main()
 			local keywords = {
 				lua = {
 					"and", "break", "or", "else", "elseif", "if", "then", "until", "repeat", "while", "do", "for", "in", "end",
-					"local", "return", "function", "export"
+					"local", "return", "function", "export", "const", -- "public", "private"
 				},
 				rbx = {
-					"game", "workspace", "script", "math", "string", "table", "task", "wait", "select", "next", "Enum",
-					"error", "warn", "tick", "assert", "shared", "loadstring", "tonumber", "tostring", "type",
-					"typeof", "unpack", "print", "Instance", "CFrame", "Vector3", "Vector2", "Color3", "UDim", "UDim2", "Ray", "BrickColor",
-					"OverlapParams", "RaycastParams", "Axes", "Random", "Region3", "Rect", "TweenInfo",
-					"collectgarbage", "not", "utf8", "pcall", "xpcall", "_G", "setmetatable", "getmetatable", "os", "pairs", "ipairs"
+					"_G", "_VERSION", "assert", "collectgarbage", "error", "gcinfo", "getfenv", "getmetatable", "ipairs", "loadstring", "newproxy",
+					"next", "pairs", "pcall", "print", "rawequal", "rawget", "rawlen", "rawset", "require", "select", "setfenv",
+					"setmetatable", "tonumber", "tostring", "type", "unpack", "xpcall", "DebuggerManager", "delay", "elapsedTime", "Enum", "game",
+					"plugin", "PluginManager", "printidentity", "script", "settings", "shared", "spawn", "stats", "tick", "time", "typeof",
+					"UserSettings", "version", "wait", "warn", "workspace", "ypcall", "bit32", "buffer", "coroutine", "debug", "math",
+					"os", "string", "table", "task", "utf8", "vector", "Axes", "BrickColor", "CatalogSearchParams", "CFrame", "Color3",
+					"ColorSequence", "ColorSequenceKeypoint", "Content", "DateTime", "DockWidgetPluginGuiInfo", "Faces", "FloatCurveKey", "Font", "Instance", "InstanceHandle", "NumberRange",
+					"NumberSequence", "NumberSequenceKeypoint", "OverlapParams", "Path2DControlPoint", "PathWaypoint", "PhysicalProperties", "Random", "Ray", "RaycastParams", "Rect", "Region3",
+					"Region3int16", "RotationCurveKey", "SecurityCapabilities", "SharedTable", "TweenInfo", "UDim", "UDim2", "User", "ValueCurveKey", "Vector2", "Vector2int16",
+					"Vector3", "Vector3int16", -- "class"
 				},
 				exploit = {
-					"hookmetamethod", "hookfunction", "getgc", "filtergc", "Drawing", "getgenv", "getsenv", "getrenv", "getfenv", "setfenv",
-					"decompile", "saveinstance", "getrawmetatable", "setrawmetatable", "checkcaller", "cloneref", "clonefunction",
-					"iscclosure", "islclosure", "isexecutorclosure", "newcclosure", "getfunctionhash", "crypt", "writefile", "appendfile", "loadfile", "readfile", "listfiles",
-					"makefolder", "isfolder", "isfile", "delfile", "delfolder", "getcustomasset", "fireclickdetector", "firetouchinterest", "fireproximityprompt"
+					"getcustomasset", "setthreadidentity", "isfile", "filtergc", "isfolder", "getcallingscript", "listfiles", "getloadedmodules",
+					"getrunningscripts", "makefolder", "getscriptbytecode", "getscriptclosure", "writefile", "getscriptfromthread", "getscripthash", "cloneref",
+					"getscripts", "compareinstances", "getsenv", "fireclickdetector", "loadstring", "fireproximityprompt", "firetouchinterest", "firesignal",
+					"getcallbackvalue", "getconnections", "gethui", "replicatesignal", "getinstances", "getnilinstances", "getnamecallmethod", "getrawmetatable",
+					"isreadonly", "setrawmetatable", "lz4decompress", "setreadonly", "hookmetamethod", "isexecutorclosure", "checkcaller", "iscclosure",
+					"cleardrawcache", "clonefunction", "identifyexecutor", "islclosure", "getrenderproperty", "getfunctionhash", "restorefunction", "newcclosure",
+					"isrenderobj", "hookfunction", "base64decode", "lz4compress", "getrenv", "request", "base64encode", "readfile",
+					"getthreadidentity", "getgenv", "appendfile", "isscriptable", "gethiddenproperty", "setrenderproperty", "delfile", "sethiddenproperty",
+					"loadfile", "getreg", "delfolder", "setscriptable", "getgc", "Drawing", "WebSocket", "setclipboard",
+					"oth", "setstackhidden", "cache", "raknet", "getbspval", "getpcd", "gethwid", "decompile",
+					"saveinstance", "setfpscap", "zstdcompress", "zstddecompress", "create_comm_channel", "get_comm_channel", "getactors", "getactorthreads",
+					"getdeletedactors", "is_parallel", "run_on_actor", "run_on_thread"
 				},
 				operators = {
 					"#", "+", "-", "*", "%", "/", "^", "=", "~", "=", "<", ">", ",", ".", "(", ")", "{", "}", "[", "]", ";", ":"
@@ -776,8 +789,6 @@ local function main()
 
 			Console.CommandLine.ScrollingFrame.Highlight.Text = SyntaxHighlightingModule.run(Console.CommandLine.ScrollingFrame.TextBox.Text)
 		end)
-
-
 
 		Console.CommandLine.ScrollingFrame.TextBox.FocusLost:Connect(function(enterPressed)
 			if enterPressed and Console.CommandLine.ScrollingFrame.TextBox.Text ~= "" then
